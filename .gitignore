@@ -1,0 +1,28 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+venv/
+.mypy_cache/
+.pytest_cache/
+htmlcov/
+.coverage
+*.log
+
+# Data and models — too large / auto-generated
+data/raw/
+data/processed/
+models/*/model.pkl
+models/*/metadata.json
+
+# Notebooks checkpoints
+.ipynb_checkpoints/
+
+# Environment
+.env
+
+# macOS
+.DS_Store

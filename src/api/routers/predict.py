@@ -17,10 +17,10 @@ from src.api.schemas import (
     BatchPredictResponse,
     ExplainResponse,
     MacroObservation,
+    PredictionInterval,
     PredictRawRequest,
     PredictRequest,
     PredictResponse,
-    PredictionInterval,
     RppiObservation,
 )
 from src.data.config import CITIES

@@ -2,10 +2,8 @@
 
 import numpy as np
 import pandas as pd
-import pytest
 
 from src.features.pipeline import FEATURE_COLS, FeaturePipeline
-from src.data.config import CITIES
 
 
 def _make_panel(city: str = "Sydney", n_quarters: int = 8) -> pd.DataFrame:

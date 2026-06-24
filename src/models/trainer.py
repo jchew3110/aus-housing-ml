@@ -161,7 +161,9 @@ def run_training_pipeline(
             ens_coverage = None
 
         all_results["ensemble"] = ensemble_metrics
-        registry.save(ensemble, ensemble_metrics, pipeline.feature_cols, calibration_coverage=ens_coverage)
+        registry.save(
+            ensemble, ensemble_metrics, pipeline.feature_cols, calibration_coverage=ens_coverage
+        )
 
     logger.info("\nModel comparison (test split):\n%s", compare_models(all_results))
     return all_results

@@ -4,13 +4,13 @@ Pydantic v2 request/response schemas for the prediction API.
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
 
-class City(str, Enum):
+class City(StrEnum):
     SYDNEY = "Sydney"
     MELBOURNE = "Melbourne"
     BRISBANE = "Brisbane"

@@ -7,7 +7,6 @@ cross-city contamination (city A's last period must not become city B's lag).
 The target is next-quarter QoQ % change, created by shift(-1) within each city.
 """
 
-import numpy as np
 import pandas as pd
 
 

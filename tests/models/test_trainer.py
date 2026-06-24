@@ -1,10 +1,8 @@
 """Tests for training pipeline and time-split correctness."""
 
 import numpy as np
-import pandas as pd
 import pytest
 
-from src.data.config import SplitConfig
 from src.features.pipeline import FeaturePipeline
 from src.models.ridge import RidgeHousingModel
 

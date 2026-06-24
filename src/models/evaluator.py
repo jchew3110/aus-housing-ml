@@ -82,7 +82,8 @@ def compare_models(
             row = {"model": model_name, "split": split_name, **metrics.to_dict()}
             rows.append(row)
     df = pd.DataFrame(rows)
-    return df.pivot_table(index="model", columns="split", values=["mae", "rmse", "r2", "directional_accuracy"])
+    metrics = ["mae", "rmse", "r2", "directional_accuracy"]
+    return df.pivot_table(index="model", columns="split", values=metrics)
 
 
 def calibration_coverage(

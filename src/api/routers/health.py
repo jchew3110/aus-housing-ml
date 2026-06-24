@@ -2,7 +2,7 @@
 GET /health and GET /model-info endpoints.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Request
 
@@ -19,7 +19,7 @@ def health(request: Request) -> HealthResponse:
     return HealthResponse(
         status="healthy" if model_loaded else "degraded",
         model_loaded=model_loaded,
-        timestamp=datetime.now(timezone.utc).isoformat(),
+        timestamp=datetime.now(UTC).isoformat(),
     )
 
 

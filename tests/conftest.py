@@ -2,8 +2,6 @@
 Shared test fixtures.
 """
 
-import io
-from unittest.mock import MagicMock
 
 import numpy as np
 import pandas as pd
@@ -11,7 +9,6 @@ import pytest
 from fastapi.testclient import TestClient
 
 from src.data.config import CITIES, SplitConfig
-
 
 # ---------------------------------------------------------------------------
 # Data fixtures
@@ -104,7 +101,7 @@ def app_with_model(trained_ridge):
         "metrics": {
             "train": {"mae": 0.3, "rmse": 0.4, "r2": 0.9, "mape": 5.0, "directional_accuracy": 0.8},
             "val": {"mae": 0.5, "rmse": 0.6, "r2": 0.7, "mape": 8.0, "directional_accuracy": 0.7},
-            "test": {"mae": 0.6, "rmse": 0.7, "r2": 0.65, "mape": 9.0, "directional_accuracy": 0.65},
+            "test": {"mae": 0.6, "rmse": 0.7, "r2": 0.65, "mape": 9.0, "directional_accuracy": 0.65},  # noqa: E501
         },
     }
 

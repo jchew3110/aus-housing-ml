@@ -1,11 +1,9 @@
 """Tests for ABS Excel and RBA CSV parsers."""
 
-import io
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import pytest
 
 from src.data.parsers import (
     _clean_abs_column_name,

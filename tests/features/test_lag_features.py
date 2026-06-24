@@ -6,7 +6,6 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.data.config import CITIES
 from src.features.lag_features import (
     add_price_changes,
     add_price_lags,

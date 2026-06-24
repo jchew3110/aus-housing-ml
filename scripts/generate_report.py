@@ -16,25 +16,24 @@ import argparse
 import base64
 import io
 import logging
-import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
+
+matplotlib.use("Agg")  # noqa: E402
+import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np
 import pandas as pd
 import seaborn as sns
 
 ROOT = Path(__file__).parents[1]
-sys.path.insert(0, str(ROOT))
 
-from src.data.config import CITIES, DATA_PROCESSED_DIR, MODELS_DIR, SplitConfig
-from src.features.pipeline import FEATURE_COLS, FeaturePipeline
-from src.models.evaluator import calibration_coverage, evaluate, walk_forward_cv
-from src.models.registry import ModelRegistry
-from src.models.ridge import RidgeHousingModel
+from src.data.config import CITIES, DATA_PROCESSED_DIR, MODELS_DIR, SplitConfig  # noqa: E402
+from src.features.pipeline import FEATURE_COLS, FeaturePipeline  # noqa: E402
+from src.models.evaluator import calibration_coverage, evaluate, walk_forward_cv  # noqa: E402
+from src.models.registry import ModelRegistry  # noqa: E402
+from src.models.ridge import RidgeHousingModel  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 log = logging.getLogger(__name__)
@@ -67,7 +66,8 @@ def _img(b64: str, caption: str = "") -> str:
 
 def _card(label: str, value: str, sub: str = "") -> str:
     sub_html = f'<div class="card-sub">{sub}</div>' if sub else ""
-    return f'<div class="card"><div class="card-val">{value}</div><div class="card-lbl">{label}</div>{sub_html}</div>'
+    inner = f'<div class="card-val">{value}</div><div class="card-lbl">{label}</div>{sub_html}'
+    return f'<div class="card">{inner}</div>'
 
 
 def _color_cell(val: float, low_good: bool = True, lo: float = 0.0, hi: float = 1.0) -> str:
@@ -129,14 +129,12 @@ def compute_all_predictions(
     """
     Returns {model_name: {split: (y_true, y_pred, lower, upper, periods, cities)}}
     """
-    pipeline = FeaturePipeline()
     result: dict[str, dict] = {}
 
-    for split in ("train", "val", "test"):
-        mask = _split_mask(feature_df, split)
-        split_df = feature_df[mask]
-        periods = split_df["period"].values
-        cities = split_df["city"].values if "city" in split_df.columns else np.array(["unknown"] * len(split_df))
+    def _cities(df: pd.DataFrame) -> np.ndarray:
+        if "city" in df.columns:
+            return df["city"].values
+        return np.array(["unknown"] * len(df))
 
     for name, bundle in models.items():
         model = bundle["model"]
@@ -147,7 +145,7 @@ def compute_all_predictions(
             X = split_df[FEATURE_COLS]
             y = split_df["target"]
             periods = split_df["period"].values
-            cities = split_df["city"].values if "city" in split_df.columns else np.array(["unknown"] * len(split_df))
+            cities = _cities(split_df)
             try:
                 preds, lo, hi = model.predict_with_interval(X, confidence=0.90)
             except Exception:
@@ -175,7 +173,6 @@ def _split_mask(df: pd.DataFrame, split: str) -> pd.Series:
 # ---------------------------------------------------------------------------
 
 def section_summary(feature_df: pd.DataFrame, models: dict) -> str:
-    pipeline = FeaturePipeline()
     n_total = len(feature_df)
     n_train = _split_mask(feature_df, "train").sum()
     n_val = _split_mask(feature_df, "val").sum()
@@ -189,7 +186,7 @@ def section_summary(feature_df: pd.DataFrame, models: dict) -> str:
     cards = (
         _card("Total samples", str(n_total), f"{period_min} → {period_max}")
         + _card("Training samples", str(n_train), f"≤ {SPLIT_CONFIG.train_end}")
-        + _card("Validation samples", str(n_val), f"{SPLIT_CONFIG.train_end} → {SPLIT_CONFIG.val_end}")
+        + _card("Validation samples", str(n_val), f"{SPLIT_CONFIG.train_end} → {SPLIT_CONFIG.val_end}")  # noqa: E501
         + _card("Test samples", str(n_test), f"> {SPLIT_CONFIG.val_end}")
         + _card("Features", str(n_features))
         + _card("Models", str(n_models))
@@ -225,14 +222,19 @@ def section_leaderboard(preds: dict) -> str:
     all_rmses = [r["Test RMSE"] for r in rows]
     all_das = [r["Directional Acc."] for r in rows]
 
-    header = "<tr><th>Rank</th><th>Model</th><th>Test MAE</th><th>Test RMSE</th><th>Test R²</th><th>Directional Accuracy</th><th>90% CI Coverage</th></tr>"
+    header = (
+        "<tr><th>Rank</th><th>Model</th><th>Test MAE</th><th>Test RMSE</th>"
+        "<th>Test R²</th><th>Directional Accuracy</th><th>90% CI Coverage</th></tr>"
+    )
     body = ""
     for i, r in enumerate(rows):
         cov_val = f'{r["90% Coverage"]:.3f}' if r["90% Coverage"] is not None else "—"
         mae_cell = _color_cell(r["Test MAE"], low_good=True, lo=min(all_maes), hi=max(all_maes))
         rmse_cell = _color_cell(r["Test RMSE"], low_good=True, lo=min(all_rmses), hi=max(all_rmses))
         r2_cell = _color_cell(r["Test R²"], low_good=False, lo=-6.0, hi=1.0)
-        da_cell = _color_cell(r["Directional Acc."], low_good=False, lo=min(all_das), hi=max(all_das))
+        da_cell = _color_cell(
+            r["Directional Acc."], low_good=False, lo=min(all_das), hi=max(all_das)
+        )
         body += (
             f"<tr><td>{i+1}</td><td><strong>{r['Model']}</strong></td>"
             f"{mae_cell}{rmse_cell}{r2_cell}{da_cell}"
@@ -267,7 +269,10 @@ def section_split_comparison(preds: dict) -> str:
                 y_true, y_pred, *_ = preds[name][split]
                 m = evaluate(y_true, y_pred)
                 vals.append(getattr(m, metric))
-            ax.bar(x + j * width, vals, width, label=split.capitalize(), color=PALETTE[split], alpha=0.85)
+            ax.bar(
+                x + j * width, vals, width,
+                label=split.capitalize(), color=PALETTE[split], alpha=0.85,
+            )
         ax.set_xticks(x + width)
         ax.set_xticklabels(model_names, rotation=15)
         ax.set_ylabel(label)
@@ -317,10 +322,6 @@ def section_scatter(preds: dict) -> str:
 
 
 def section_timeseries(feature_df: pd.DataFrame, preds: dict) -> str:
-    test_mask = _split_mask(feature_df, "test")
-    test_periods = feature_df[test_mask]["period"].values
-    unique_periods = sorted(set(test_periods))
-
     # Average across all cities for each quarter
     y_true_by_period: dict = {}
     for name, splits in preds.items():
@@ -547,7 +548,8 @@ def section_residuals(preds: dict) -> str:
         y_true, y_pred, *_ = preds[name]["test"]
         residuals = y_true - y_pred
         ax = axes[i]
-        ax.hist(residuals, bins=25, color=MODEL_COLORS[i % len(MODEL_COLORS)], alpha=0.75, density=True)
+        color = MODEL_COLORS[i % len(MODEL_COLORS)]
+        ax.hist(residuals, bins=25, color=color, alpha=0.75, density=True)
         x = np.linspace(residuals.min(), residuals.max(), 200)
         mu, sigma = np.mean(residuals), np.std(residuals)
         ax.plot(x, (1 / (sigma * np.sqrt(2 * np.pi))) * np.exp(-0.5 * ((x - mu) / sigma) ** 2),
@@ -675,7 +677,8 @@ def build_html(sections: list[str], generated_at: str) -> str:
 <body>
 <header>
   <h1>AUS Housing ML — Evaluation Report</h1>
-  <p>Generated {generated_at} &nbsp;|&nbsp; Predicting next-quarter RPPI QoQ% across 8 Australian capital cities</p>
+  <p>Generated {generated_at} &nbsp;|&nbsp;
+  Predicting next-quarter RPPI QoQ% across 8 Australian capital cities</p>
 </header>
 <main>
 {body}
@@ -706,12 +709,12 @@ def main():
 
     if not models:
         log.warning("No trained models found. Train models first with: make train")
-        sys.exit(1)
+        raise SystemExit(1)
 
     log.info("Computing predictions for all models and splits...")
     preds = compute_all_predictions(feature_df, models)
 
-    generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    generated_at = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
     log.info("Building report sections...")
 
     sections = [

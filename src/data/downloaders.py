@@ -15,8 +15,6 @@ import requests
 from bs4 import BeautifulSoup
 
 from src.data.config import (
-    ABS_CPI_FILE_PATTERN,
-    ABS_CPI_RELEASE_URL,
     ABS_LF_FILE_PATTERN,
     ABS_LF_RELEASE_URL,
     ABS_RPPI_FILE_PATTERN,

@@ -2,9 +2,8 @@
 
 import numpy as np
 import pandas as pd
-import pytest
 
-from src.features.momentum_features import add_momentum_features, _signed_streak
+from src.features.momentum_features import _signed_streak, add_momentum_features
 
 
 class TestSignedStreak:

@@ -5,9 +5,7 @@ import pytest
 
 from src.features.pipeline import FeaturePipeline
 from src.models.ensemble import EnsembleHousingModel
-from src.models.lgbm_model import LGBMHousingModel
 from src.models.ridge import RidgeHousingModel
-from src.models.xgboost_model import XGBoostHousingModel
 
 
 @pytest.fixture

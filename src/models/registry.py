@@ -5,10 +5,8 @@ Model artifact registry: save and load trained models with metadata.
 import json
 import logging
 import pickle
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-
-import pandas as pd
 
 from src.data.config import MODELS_DIR
 from src.models.base import BaseHousingModel
@@ -43,7 +41,7 @@ class ModelRegistry:
         metadata = {
             "name": model.name,
             "version": model.version,
-            "training_date": datetime.now(timezone.utc).isoformat(),
+            "training_date": datetime.now(UTC).isoformat(),
             "feature_cols": feature_cols,
             "metrics": {split: m.to_dict() for split, m in metrics.items()},
             "calibration_coverage": calibration_coverage,
@@ -98,5 +96,8 @@ class ModelRegistry:
         if not models:
             raise FileNotFoundError("No trained models found in registry.")
         best = min(models, key=lambda x: x.get(metric) or float("inf"))
-        logger.info("Loading best model: %s (v%s, %s=%.4f)", best["name"], best["version"], metric, best[metric])
+        logger.info(
+            "Loading best model: %s (v%s, %s=%.4f)",
+            best["name"], best["version"], metric, best[metric],
+        )
         return self.load(best["name"], best["version"])

@@ -19,9 +19,7 @@ RBA CSV format quirks handled here:
 import re
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
-
 
 # ---------------------------------------------------------------------------
 # ABS Excel helpers
@@ -194,8 +192,9 @@ def parse_labour_force(path: Path) -> pd.Series:
     df = parse_abs_excel(path)
 
     if target_col_idx is not None:
-        # Use iloc to avoid duplicate-column-name issues (df[col] returns DataFrame when names clash)
-        return pd.to_numeric(df.iloc[:, target_col_idx], errors="coerce").dropna().rename("unemployment_rate")
+        # iloc avoids duplicate-column-name issues (df[col] returns DataFrame when names clash)
+        col = pd.to_numeric(df.iloc[:, target_col_idx], errors="coerce").dropna()
+        return col.rename("unemployment_rate")
 
     # Last fallback: column whose values sit in the typical unemployment range (2–15%)
     for i in range(df.shape[1]):

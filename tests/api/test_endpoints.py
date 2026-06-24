@@ -1,6 +1,5 @@
 """Tests for FastAPI endpoints."""
 
-import pytest
 
 
 class TestHealthEndpoint:
@@ -82,7 +81,7 @@ class TestPredictEndpoint:
         assert resp.status_code == 422
 
     def test_all_cities_accepted(self, client, valid_predict_payload):
-        cities = ["Sydney", "Melbourne", "Brisbane", "Adelaide", "Perth", "Hobart", "Darwin", "Canberra"]
+        cities = ["Sydney", "Melbourne", "Brisbane", "Adelaide", "Perth", "Hobart", "Darwin", "Canberra"]  # noqa: E501
         for city in cities:
             payload = {**valid_predict_payload, "city": city}
             resp = client.post("/api/v1/predict", json=payload)

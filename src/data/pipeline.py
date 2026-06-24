@@ -4,11 +4,10 @@ Orchestrates the full data ingestion pipeline:
 """
 
 import logging
-from pathlib import Path
 
 import pandas as pd
 
-from src.data.config import DATA_PROCESSED_DIR, DATA_RAW_DIR
+from src.data.config import DATA_PROCESSED_DIR
 from src.data.downloaders import (
     download_cpi,
     download_labour_force,

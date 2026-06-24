@@ -53,7 +53,7 @@ class TestEvaluate:
 
 class TestCompareModels:
     def test_returns_dataframe(self):
-        m = ModelMetrics(mae=0.5, rmse=0.6, r2=0.7, mape=5.0, directional_accuracy=0.8, n_samples=100)
+        m = ModelMetrics(mae=0.5, rmse=0.6, r2=0.7, mape=5.0, directional_accuracy=0.8, n_samples=100)  # noqa: E501
         results = {"ridge": {"test": m}, "lgbm": {"test": m}}
         df = compare_models(results)
         assert df is not None

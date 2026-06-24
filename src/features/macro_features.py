@@ -5,6 +5,7 @@ All features are lagged by at least 1 period so no current-period macro
 data leaks into the prediction of next-quarter prices.
 """
 
+import numpy as np
 import pandas as pd
 
 
@@ -50,4 +51,32 @@ def add_unemployment_features(
     df["unemp_delta"] = df[unemp_col].diff()
     df["unemp_lag1"] = df[unemp_col].shift(1)
     df["unemp_delta_lag1"] = df["unemp_delta"].shift(1)
+    return df
+
+
+def add_rate_regime_features(
+    df: pd.DataFrame,
+    rate_col: str = "cash_rate_lag1",
+) -> pd.DataFrame:
+    """
+    Bucket the lagged cash rate into 4 ordinal regimes.
+
+    0: very low  (< 1%)  — emergency/near-zero stimulus
+    1: low       (1–3%)  — accommodative
+    2: normal    (3–6%)  — historical mid-range
+    3: high      (≥ 6%)  — restrictive
+
+    Captures non-linear interest rate effects: the difference between
+    moving from 5% → 6% is very different from moving from 0.1% → 1.1%.
+    Requires cash_rate_lag1 to already be present (call add_cash_rate_features first).
+    """
+    df = df.copy()
+    rate = df[rate_col].values
+    # np.digitize([1.0, 3.0, 6.0]) bins: 0 if <1, 1 if 1-3, 2 if 3-6, 3 if ≥6
+    bins = np.array([1.0, 3.0, 6.0])
+    df["rate_regime"] = np.where(
+        pd.isna(df[rate_col]),
+        np.nan,
+        np.digitize(rate, bins).astype(float),
+    )
     return df

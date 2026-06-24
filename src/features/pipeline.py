@@ -18,8 +18,10 @@ from src.features.lag_features import (
 from src.features.macro_features import (
     add_cash_rate_features,
     add_cpi_features,
+    add_rate_regime_features,
     add_unemployment_features,
 )
+from src.features.momentum_features import add_momentum_features
 from src.features.seasonal_features import add_seasonal_features
 
 FEATURE_COLS: list[str] = [
@@ -33,9 +35,14 @@ FEATURE_COLS: list[str] = [
     # Rolling statistics (window of 4 quarters, shifted by 1)
     "rolling_mean_4q",
     "rolling_std_4q",
+    # Price momentum and acceleration
+    "momentum_streak_lag1",
+    "price_acceleration_lag1",
     # Macro: interest rate (all lagged 1 period)
     "cash_rate_lag1",
     "cash_rate_delta_lag1",
+    # Cash rate regime bucket (non-linear rate effect)
+    "rate_regime",
     # Macro: inflation (lagged)
     "cpi_lag1",
     "cpi_yoy_pct_lag1",
@@ -81,10 +88,16 @@ class FeaturePipeline:
         df["rppi_qoq_pct_lag1"] = df.groupby("city")["rppi_qoq_pct"].shift(1)
         df["rppi_yoy_pct_lag1"] = df.groupby("city")["rppi_yoy_pct"].shift(1)
 
+        # Momentum and acceleration (need rppi_qoq_pct)
+        df = add_momentum_features(df)
+
         # Macro features (applied per-row, no groupby needed — macro is national)
         df = add_cash_rate_features(df)
         df = add_cpi_features(df)
         df = add_unemployment_features(df)
+
+        # Rate regime requires cash_rate_lag1 (computed above)
+        df = add_rate_regime_features(df)
 
         # Seasonal features
         df = add_seasonal_features(df)
@@ -98,6 +111,36 @@ class FeaturePipeline:
         # Drop rows with NaN target (last row per city) or NaN in any feature
         df = df.dropna(subset=[TARGET_COL] + FEATURE_COLS).reset_index(drop=True)
 
+        return df
+
+    def build_inference_row(self, panel_df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Like build() but does NOT drop rows where the target is NaN.
+
+        Use this for inference: the last provided period's features are used
+        to predict the NEXT period (target = NaN since that period is unknown).
+        Returns only rows where all FEATURE_COLS are non-NaN.
+        """
+        df = panel_df.copy()
+        df = df.sort_values(["city", "period"]).reset_index(drop=True)
+
+        df = add_price_lags(df)
+        df = add_price_changes(df)
+        df = add_rolling_stats(df)
+
+        df["rppi_qoq_pct_lag1"] = df.groupby("city")["rppi_qoq_pct"].shift(1)
+        df["rppi_yoy_pct_lag1"] = df.groupby("city")["rppi_yoy_pct"].shift(1)
+
+        df = add_momentum_features(df)
+        df = add_cash_rate_features(df)
+        df = add_cpi_features(df)
+        df = add_unemployment_features(df)
+        df = add_rate_regime_features(df)
+        df = add_seasonal_features(df)
+        df = add_city_dummies(df)
+
+        # Keep only rows where every feature can be computed — target NaN is fine
+        df = df.dropna(subset=self.feature_cols).reset_index(drop=True)
         return df
 
     def get_X_y(

@@ -1,6 +1,7 @@
 __pycache__/
 *.py[cod]
 *.egg-info/
+aus_housing_ml.egg-info/
 .eggs/
 dist/
 build/

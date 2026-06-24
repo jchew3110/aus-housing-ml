@@ -21,13 +21,16 @@ class City(str, Enum):
     CANBERRA = "Canberra"
 
 
+# ---------------------------------------------------------------------------
+# /predict — feature-vector request (advanced / internal callers)
+# ---------------------------------------------------------------------------
+
 class PredictRequest(BaseModel):
     city: City
     quarter: Literal[1, 2, 3, 4]
     year: int = Field(..., ge=2000, le=2050, description="Year of the prediction period")
 
     # The caller provides pre-computed lag/context values.
-    # These map directly onto the model's feature columns.
     rppi_current: float = Field(..., gt=0, description="Current period RPPI index value")
     rppi_lag1: float = Field(..., gt=0, description="RPPI from 1 quarter ago")
     rppi_lag2: float = Field(..., gt=0, description="RPPI from 2 quarters ago")
@@ -43,6 +46,15 @@ class PredictRequest(BaseModel):
     )
     rolling_std_4q: float = Field(
         ..., ge=0, description="Rolling 4-quarter std of QoQ % changes (lagged)"
+    )
+    momentum_streak: float = Field(
+        default=0.0,
+        description="Signed count of consecutive up/down quarters (lagged). "
+        "Positive = consecutive increases, negative = consecutive decreases.",
+    )
+    price_acceleration: float = Field(
+        default=0.0,
+        description="Change in QoQ growth rate from one quarter to the next (lagged).",
     )
     cash_rate: float = Field(..., ge=0, le=30, description="Current quarter-end cash rate (%)")
     cash_rate_prev: float = Field(..., ge=0, le=30, description="Previous quarter cash rate (%)")
@@ -66,6 +78,77 @@ class PredictRequest(BaseModel):
         return self
 
 
+# ---------------------------------------------------------------------------
+# /predict/raw — time-series request (primary user-facing endpoint)
+# ---------------------------------------------------------------------------
+
+class RppiObservation(BaseModel):
+    year: int = Field(..., ge=2000, le=2050)
+    quarter: Literal[1, 2, 3, 4]
+    rppi_index: float = Field(..., gt=0, description="RPPI index value for this quarter")
+
+
+class MacroObservation(BaseModel):
+    year: int = Field(..., ge=2000, le=2050)
+    quarter: Literal[1, 2, 3, 4]
+    cash_rate: float = Field(..., ge=0, le=30)
+    cpi: float = Field(..., gt=0)
+    unemployment_rate: float = Field(..., ge=0, le=100)
+
+
+class PredictRawRequest(BaseModel):
+    """
+    User-friendly prediction request that accepts raw time-series data.
+
+    Provide at least 5 consecutive quarters of RPPI and macro observations
+    in chronological order. The server computes all lag/rolling features
+    internally and returns a prediction for the quarter immediately following
+    the last observation provided.
+    """
+
+    city: City
+    rppi_history: list[RppiObservation] = Field(
+        ...,
+        min_length=6,
+        max_length=40,
+        description="Chronological quarterly RPPI observations (oldest first). Minimum 6.",
+    )
+    macro_history: list[MacroObservation] = Field(
+        ...,
+        min_length=6,
+        max_length=40,
+        description="Chronological quarterly macro observations (oldest first). "
+        "Must have the same length and periods as rppi_history.",
+    )
+
+    @model_validator(mode="after")
+    def validate_histories(self) -> PredictRawRequest:
+        if len(self.rppi_history) != len(self.macro_history):
+            raise ValueError(
+                f"rppi_history ({len(self.rppi_history)} items) and macro_history "
+                f"({len(self.macro_history)} items) must have the same length."
+            )
+        for r, m in zip(self.rppi_history, self.macro_history):
+            if r.year != m.year or r.quarter != m.quarter:
+                raise ValueError(
+                    f"Period mismatch: rppi_history has {r.year}Q{r.quarter} "
+                    f"but macro_history has {m.year}Q{m.quarter}."
+                )
+        return self
+
+
+# ---------------------------------------------------------------------------
+# /predict/batch — multiple feature-vector predictions in one call
+# ---------------------------------------------------------------------------
+
+class BatchPredictRequest(BaseModel):
+    requests: list[PredictRequest] = Field(..., min_length=1, max_length=100)
+
+
+# ---------------------------------------------------------------------------
+# Shared response models
+# ---------------------------------------------------------------------------
+
 class PredictionInterval(BaseModel):
     lower: float
     upper: float
@@ -81,6 +164,12 @@ class PredictResponse(BaseModel):
     )
     direction: Literal["up", "down", "flat"]
     confidence_interval: PredictionInterval
+    model_name: str
+    model_version: str
+
+
+class BatchPredictResponse(BaseModel):
+    predictions: list[PredictResponse]
     model_name: str
     model_version: str
 

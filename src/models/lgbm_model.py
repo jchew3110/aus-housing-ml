@@ -8,6 +8,7 @@ import lightgbm as lgb
 import numpy as np
 import optuna
 import pandas as pd
+import shap
 
 from src.models.base import BaseHousingModel
 
@@ -26,6 +27,7 @@ class LGBMHousingModel(BaseHousingModel):
         self._lower_model: lgb.LGBMRegressor | None = None
         self._upper_model: lgb.LGBMRegressor | None = None
         self._feature_cols: list[str] = []
+        self._explainer: shap.TreeExplainer | None = None
 
     def _make_estimator(self, params: dict, objective: str = "regression") -> lgb.LGBMRegressor:
         return lgb.LGBMRegressor(
@@ -114,3 +116,10 @@ class LGBMHousingModel(BaseHousingModel):
     def get_feature_importance(self) -> pd.Series:
         scores = self.model.feature_importances_
         return pd.Series(scores, index=self._feature_cols).sort_values(ascending=False)
+
+    def compute_shap(self, X: pd.DataFrame) -> pd.DataFrame:
+        if self._explainer is None:
+            self._explainer = shap.TreeExplainer(self.model)
+        X_feat = X[self._feature_cols]
+        values = self._explainer.shap_values(X_feat)
+        return pd.DataFrame(values, columns=self._feature_cols, index=X_feat.index)

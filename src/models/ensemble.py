@@ -84,3 +84,10 @@ class EnsembleHousingModel(BaseHousingModel):
             for m, w in zip(self.models, self.weights)
         )
         return importance.sort_values(ascending=False)
+
+    def compute_shap(self, X: pd.DataFrame) -> pd.DataFrame:
+        blended: pd.DataFrame | None = None
+        for m, w in zip(self.models, self.weights):
+            shap_df = m.compute_shap(X) * w
+            blended = shap_df if blended is None else blended + shap_df
+        return blended

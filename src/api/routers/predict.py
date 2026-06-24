@@ -8,12 +8,14 @@ POST /api/v1/predict/batch  — batch of feature-vector requests
 
 import numpy as np
 import pandas as pd
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from src.api.dependencies import ModelState, get_model_state
 from src.api.schemas import (
+    BatchPredictError,
     BatchPredictRequest,
     BatchPredictResponse,
+    ExplainResponse,
     MacroObservation,
     PredictRawRequest,
     PredictRequest,
@@ -172,15 +174,18 @@ def predict_raw(
     """
     Predict next-quarter QoQ price change from raw time-series data.
 
-    Provide at least 5 consecutive quarters of RPPI index values and
+    Provide at least 6 consecutive quarters of RPPI index values and
     matching macro observations (cash rate, CPI, unemployment). The server
     computes all lag, rolling, momentum, and regime features automatically.
 
     The prediction is for the quarter immediately after the last provided period.
     """
-    X, pred_year, pred_quarter = _features_for_last_period(
-        req.city.value, req.rppi_history, req.macro_history
-    )
+    try:
+        X, pred_year, pred_quarter = _features_for_last_period(
+            req.city.value, req.rppi_history, req.macro_history
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     return _make_response(req.city.value, pred_year, pred_quarter, X, state)
 
 
@@ -192,17 +197,108 @@ def predict_batch(
     Predict for multiple cities/periods in a single request.
 
     Accepts up to 100 feature-vector requests. Responses preserve input order.
+    Individual request failures are collected in `errors` and do not abort the
+    rest of the batch. Returns HTTP 207 when any errors occurred, 200 otherwise.
     """
-    predictions = []
-    for r in req.requests:
-        X = _request_to_features(r)
-        next_period = pd.Period(f"{r.year}Q{r.quarter}", freq="Q-DEC") + 1
-        predictions.append(
-            _make_response(r.city.value, next_period.year, next_period.quarter, X, state)
-        )
+    from fastapi.responses import JSONResponse
 
-    return BatchPredictResponse(
+    predictions: list[PredictResponse] = []
+    errors: list[BatchPredictError] = []
+
+    for idx, r in enumerate(req.requests):
+        try:
+            X = _request_to_features(r)
+            next_period = pd.Period(f"{r.year}Q{r.quarter}", freq="Q-DEC") + 1
+            predictions.append(
+                _make_response(r.city.value, next_period.year, next_period.quarter, X, state)
+            )
+        except Exception as exc:
+            errors.append(
+                BatchPredictError(index=idx, city=r.city.value, detail=str(exc))
+            )
+
+    model_name = state.metadata.get("name", "unknown")
+    model_version = state.metadata.get("version", "1.0")
+    response = BatchPredictResponse(
         predictions=predictions,
+        errors=errors,
+        success_count=len(predictions),
+        error_count=len(errors),
+        model_name=model_name,
+        model_version=model_version,
+    )
+    status_code = 207 if errors else 200
+    return JSONResponse(content=response.model_dump(), status_code=status_code)
+
+
+# ---------------------------------------------------------------------------
+# Explain endpoints
+# ---------------------------------------------------------------------------
+
+def _make_explain_response(
+    req_city: str,
+    req_year: int,
+    req_quarter: int,
+    X: pd.DataFrame,
+    state: ModelState,
+) -> ExplainResponse:
+    point, lower, upper = state.model.predict_with_interval(X, confidence=0.90)
+    pred = float(point[0])
+    direction = "up" if pred > 0.0 else ("down" if pred < 0.0 else "flat")
+
+    shap_df = state.model.compute_shap(X)
+    shap_row = shap_df.iloc[0]
+    base_val = float(pred - shap_row.sum())
+
+    return ExplainResponse(
+        city=req_city,
+        year=req_year,
+        quarter=req_quarter,
+        predicted_qoq_pct_change=round(pred, 4),
+        direction=direction,
+        confidence_interval=PredictionInterval(
+            lower=round(float(lower[0]), 4),
+            upper=round(float(upper[0]), 4),
+            confidence=0.90,
+        ),
         model_name=state.metadata.get("name", "unknown"),
         model_version=state.metadata.get("version", "1.0"),
+        shap_values={feat: round(float(val), 6) for feat, val in shap_row.items()},
+        base_value=round(base_val, 4),
     )
+
+
+@router.post("/explain", response_model=ExplainResponse)
+def explain(
+    req: PredictRequest, state: ModelState = Depends(get_model_state)
+) -> ExplainResponse:
+    """
+    Like `/predict` but also returns per-feature SHAP contributions.
+
+    `shap_values` shows how much each feature pushed the prediction above or
+    below the model's baseline (`base_value`). Values sum to
+    `predicted_qoq_pct_change − base_value`.
+    """
+    X = _request_to_features(req)
+    next_period = pd.Period(f"{req.year}Q{req.quarter}", freq="Q-DEC") + 1
+    return _make_explain_response(
+        req.city.value, next_period.year, next_period.quarter, X, state
+    )
+
+
+@router.post("/explain/raw", response_model=ExplainResponse)
+def explain_raw(
+    req: PredictRawRequest, state: ModelState = Depends(get_model_state)
+) -> ExplainResponse:
+    """
+    Like `/predict/raw` but also returns per-feature SHAP contributions.
+
+    Accepts raw time-series data; the server computes all features internally.
+    """
+    try:
+        X, pred_year, pred_quarter = _features_for_last_period(
+            req.city.value, req.rppi_history, req.macro_history
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return _make_explain_response(req.city.value, pred_year, pred_quarter, X, state)

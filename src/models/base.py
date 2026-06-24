@@ -48,3 +48,14 @@ class BaseHousingModel(ABC):
 
     @abstractmethod
     def get_feature_importance(self) -> pd.Series: ...
+
+    @abstractmethod
+    def compute_shap(self, X: pd.DataFrame) -> pd.DataFrame:
+        """
+        Return a DataFrame of SHAP values with the same shape as X.
+
+        Each value represents the contribution of that feature to pushing the
+        prediction above (positive) or below (negative) the model's base value.
+        SHAP values are additive: sum(row) ≈ prediction − base_value.
+        """
+        ...

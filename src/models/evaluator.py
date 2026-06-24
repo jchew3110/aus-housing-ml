@@ -85,6 +85,23 @@ def compare_models(
     return df.pivot_table(index="model", columns="split", values=["mae", "rmse", "r2", "directional_accuracy"])
 
 
+def calibration_coverage(
+    y_true: np.ndarray | pd.Series,
+    lower: np.ndarray,
+    upper: np.ndarray,
+) -> float:
+    """
+    Empirical coverage of prediction intervals.
+
+    Returns the fraction of y_true values that fall within [lower, upper].
+    For a well-calibrated 90% interval this should be close to 0.90.
+    """
+    y = np.asarray(y_true, dtype=float)
+    lo = np.asarray(lower, dtype=float)
+    hi = np.asarray(upper, dtype=float)
+    return float(np.mean((y >= lo) & (y <= hi)))
+
+
 def walk_forward_cv(
     feature_df: pd.DataFrame,
     model_cls: type,

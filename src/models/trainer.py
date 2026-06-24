@@ -12,7 +12,7 @@ from src.data.config import SplitConfig
 from src.features.pipeline import FeaturePipeline
 from src.models.base import BaseHousingModel
 from src.models.ensemble import EnsembleHousingModel
-from src.models.evaluator import ModelMetrics, compare_models, evaluate
+from src.models.evaluator import ModelMetrics, calibration_coverage, compare_models, evaluate
 from src.models.lgbm_model import LGBMHousingModel
 from src.models.registry import ModelRegistry
 from src.models.ridge import RidgeHousingModel
@@ -103,8 +103,20 @@ def run_training_pipeline(
                 m.directional_accuracy * 100,
             )
 
+        # Compute empirical calibration coverage on val set
+        if len(X_val) > 0:
+            _, lo, hi = model.predict_with_interval(X_val, confidence=0.90)
+            coverage = calibration_coverage(y_val, lo, hi)
+            logger.info(
+                "  %s — 90%% interval empirical coverage on val: %.1f%%",
+                model_name,
+                coverage * 100,
+            )
+        else:
+            coverage = None
+
         all_results[model_name] = splits_metrics
-        registry.save(model, splits_metrics, pipeline.feature_cols)
+        registry.save(model, splits_metrics, pipeline.feature_cols, calibration_coverage=coverage)
 
     # Build ensemble from XGBoost + LightGBM if both were trained
     if (
@@ -138,8 +150,18 @@ def run_training_pipeline(
                 m.directional_accuracy * 100,
             )
 
+        if len(X_val) > 0:
+            _, lo, hi = ensemble.predict_with_interval(X_val, confidence=0.90)
+            ens_coverage = calibration_coverage(y_val, lo, hi)
+            logger.info(
+                "  ensemble — 90%% interval empirical coverage on val: %.1f%%",
+                ens_coverage * 100,
+            )
+        else:
+            ens_coverage = None
+
         all_results["ensemble"] = ensemble_metrics
-        registry.save(ensemble, ensemble_metrics, pipeline.feature_cols)
+        registry.save(ensemble, ensemble_metrics, pipeline.feature_cols, calibration_coverage=ens_coverage)
 
     logger.info("\nModel comparison (test split):\n%s", compare_models(all_results))
     return all_results

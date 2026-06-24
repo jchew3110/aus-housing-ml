@@ -168,8 +168,28 @@ class PredictResponse(BaseModel):
     model_version: str
 
 
+class ExplainResponse(PredictResponse):
+    """Extends PredictResponse with per-feature SHAP contributions."""
+
+    shap_values: dict[str, float] = Field(
+        description="Feature name → SHAP contribution (additive, sums to prediction − base_value)"
+    )
+    base_value: float = Field(
+        description="Model's expected output (SHAP intercept / mean training prediction)"
+    )
+
+
+class BatchPredictError(BaseModel):
+    index: int = Field(description="Zero-based index of the failed request in the batch")
+    city: str
+    detail: str = Field(description="Human-readable error description")
+
+
 class BatchPredictResponse(BaseModel):
     predictions: list[PredictResponse]
+    errors: list[BatchPredictError] = []
+    success_count: int
+    error_count: int
     model_name: str
     model_version: str
 
@@ -187,3 +207,4 @@ class ModelInfoResponse(BaseModel):
     feature_count: int
     metrics: dict[str, dict[str, float]]
     cities_supported: list[str]
+    calibration_coverage: float | None = None

@@ -36,6 +36,8 @@ def model_info(request: Request) -> ModelInfoResponse:
     for split, m in raw_metrics.items():
         clean_metrics[split] = {k: v for k, v in m.items() if k != "n_samples"}
 
+    calibration = meta.get("calibration_coverage")
+
     return ModelInfoResponse(
         model_name=meta.get("name", "unknown"),
         model_version=meta.get("version", "1.0"),
@@ -43,4 +45,5 @@ def model_info(request: Request) -> ModelInfoResponse:
         feature_count=len(feature_cols),
         metrics=clean_metrics,
         cities_supported=CITIES,
+        calibration_coverage=round(calibration, 4) if calibration is not None else None,
     )

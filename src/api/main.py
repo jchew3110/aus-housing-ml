@@ -10,9 +10,11 @@ import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from src.api.dependencies import ModelState
+from src.api.middleware import PredictionMetricsMiddleware, set_model_info
 from src.api.routers import health, predict
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
@@ -25,6 +27,14 @@ async def lifespan(app: FastAPI):
     model_name = os.getenv("MODEL_NAME")  # optionally pin a specific model
     state.load_model(model_name)
     app.state.model_state = state
+
+    # Populate Prometheus model_info gauge
+    meta = state.metadata
+    set_model_info(
+        model_name=meta.get("name", "unknown"),
+        model_version=meta.get("version", "1.0"),
+        training_date=meta.get("training_date", ""),
+    )
     yield
 
 
@@ -39,8 +49,16 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    app.add_middleware(PredictionMetricsMiddleware)
+
     app.include_router(predict.router, prefix="/api/v1", tags=["prediction"])
     app.include_router(health.router, tags=["health"])
+
+    @app.get("/metrics", include_in_schema=False)
+    async def metrics():
+        return PlainTextResponse(
+            generate_latest().decode("utf-8"), media_type=CONTENT_TYPE_LATEST
+        )
 
     @app.exception_handler(Exception)
     async def global_exception_handler(request: Request, exc: Exception):

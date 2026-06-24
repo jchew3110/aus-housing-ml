@@ -10,6 +10,7 @@ import logging
 import numpy as np
 import optuna
 import pandas as pd
+import shap
 import xgboost as xgb
 
 from src.models.base import BaseHousingModel
@@ -29,6 +30,7 @@ class XGBoostHousingModel(BaseHousingModel):
         self._lower_model: xgb.XGBRegressor | None = None
         self._upper_model: xgb.XGBRegressor | None = None
         self._feature_cols: list[str] = []
+        self._explainer: shap.TreeExplainer | None = None
 
     def _make_estimator(self, params: dict) -> xgb.XGBRegressor:
         return xgb.XGBRegressor(
@@ -124,3 +126,10 @@ class XGBoostHousingModel(BaseHousingModel):
     def get_feature_importance(self) -> pd.Series:
         scores = self.model.feature_importances_
         return pd.Series(scores, index=self._feature_cols).sort_values(ascending=False)
+
+    def compute_shap(self, X: pd.DataFrame) -> pd.DataFrame:
+        if self._explainer is None:
+            self._explainer = shap.TreeExplainer(self.model)
+        X_feat = X[self._feature_cols]
+        values = self._explainer.shap_values(X_feat)
+        return pd.DataFrame(values, columns=self._feature_cols, index=X_feat.index)

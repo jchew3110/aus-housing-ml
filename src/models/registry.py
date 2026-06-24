@@ -30,6 +30,7 @@ class ModelRegistry:
         model: BaseHousingModel,
         metrics: dict[str, ModelMetrics],
         feature_cols: list[str],
+        calibration_coverage: float | None = None,
     ) -> Path:
         """Save model.pkl + metadata.json to models/{name}_v{version}/."""
         out_dir = self._model_dir(model.name, model.version)
@@ -45,6 +46,7 @@ class ModelRegistry:
             "training_date": datetime.now(timezone.utc).isoformat(),
             "feature_cols": feature_cols,
             "metrics": {split: m.to_dict() for split, m in metrics.items()},
+            "calibration_coverage": calibration_coverage,
         }
         meta_path = out_dir / "metadata.json"
         with open(meta_path, "w") as f:
@@ -85,6 +87,7 @@ class ModelRegistry:
                     "test_rmse": test_metrics.get("rmse"),
                     "test_mae": test_metrics.get("mae"),
                     "test_r2": test_metrics.get("r2"),
+                    "calibration_coverage": meta.get("calibration_coverage"),
                 }
             )
         return sorted(results, key=lambda x: x.get("test_rmse") or float("inf"))

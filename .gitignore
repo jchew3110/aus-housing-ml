@@ -25,5 +25,8 @@ models/*/metadata.json
 # Environment
 .env
 
+# Generated reports (re-created by make report)
+reports/*.html
+
 # macOS
 .DS_Store

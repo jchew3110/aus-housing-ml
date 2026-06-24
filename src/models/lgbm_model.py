@@ -118,7 +118,7 @@ class LGBMHousingModel(BaseHousingModel):
         return pd.Series(scores, index=self._feature_cols).sort_values(ascending=False)
 
     def compute_shap(self, X: pd.DataFrame) -> pd.DataFrame:
-        if self._explainer is None:
+        if getattr(self, "_explainer", None) is None:
             self._explainer = shap.TreeExplainer(self.model)
         X_feat = X[self._feature_cols]
         values = self._explainer.shap_values(X_feat)

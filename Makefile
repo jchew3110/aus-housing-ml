@@ -1,6 +1,6 @@
 .PHONY: install download-data process-data train train-fast test test-cov lint format \
         docker-build docker-up docker-down docker-logs clean-data clean-models clean-all \
-        notebook pipeline
+        notebook pipeline report
 
 install:
 	pip install -e ".[dev]"
@@ -57,5 +57,9 @@ clean-all: clean-data clean-models
 notebook:
 	jupyter lab notebooks/
 
-pipeline: download-data process-data train test
+report:
+	python scripts/generate_report.py
+	@echo "Report written to reports/evaluation_report.html"
+
+pipeline: download-data process-data train test report
 	@echo "Full pipeline complete."
